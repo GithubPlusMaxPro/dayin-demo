@@ -155,19 +155,23 @@ export default {
 
           const label = this.labels[i];
           const isLeft = label.type === 'left';
+          const isNone = label.type === 'none';
 
-          // 添加条形码
-          const barcodeImage = await this.createBarcodeImage(label.key);
-          pdf.addImage(barcodeImage, 'PNG', 0, 0, 50, 10);
+          // 只有在非 none 类型时添加条形码
+          if (!isNone) {
+            const barcodeImage = await this.createBarcodeImage(label.key);
+            pdf.addImage(barcodeImage, 'PNG', 0, 0, 50, 10);
+          }
 
           // 添加 filtered（允许两行）
           pdf.setFont('Yahei', 'bold');
           pdf.setFontSize(7);
-          pdf.text(label.filtered, 2, 12, { maxWidth: 33, lineHeightFactor: 1.2 });
+          const filteredY = isNone ? 5 : 12; // 调整 none 类型时 filtered 的位置
+          pdf.text(label.filtered, 2, filteredY, { maxWidth: 33, lineHeightFactor: 1.2 });
 
           // 调整其他文本元素的位置和大小
           pdf.setFontSize(5);
-          const textStartY = 17;
+          const textStartY = isNone ? 10 : 17; // 调整 none 类型时文本的起始位置
           const textX = isLeft ? 14 : 2;
           const textAlign = 'left';
 
@@ -179,13 +183,14 @@ export default {
           pdf.text(label.merName, textX, textStartY + 10, { align: textAlign });
 
           // 调整 card_id 和二维码的位置
-          pdf.setFontSize(4); // 减小 card_id 的字体大小
-          const qrCodeX = isLeft ? 1 : 37;
-          const cardIdY = 16.5; // 调整 card_id 的垂直位置，使其更靠近二维码
-          pdf.text(label.cardId, qrCodeX, cardIdY, { align: 'left' }); // 始终从左侧对齐
+          pdf.setFontSize(4);
+          const qrCodeX = isNone ? 37 : (isLeft ? 1 : 37);
+          const cardIdY = isNone ? 9.5 : 16.5; // 调整 none 类型时 card_id 的位置
+          pdf.text(label.cardId, qrCodeX, cardIdY, { align: 'left' });
 
           const qrCodeImage = await this.createQRCodeImage(label.csku);
-          pdf.addImage(qrCodeImage, 'PNG', qrCodeX, 17, 12, 12);
+          const qrCodeY = isNone ? 10 : 17; // 调整 none 类型时二维码的位置
+          pdf.addImage(qrCodeImage, 'PNG', qrCodeX, qrCodeY, 12, 12);
 
           this.exportProgress = Math.round(((i + 1) / this.labels.length) * 100);
           if (i % 10 === 0) {
@@ -314,6 +319,17 @@ export default {
             },
             {
               'type':'left',
+              "filtered": "地垫-戈雅-40-60cm水晶绒",
+              "from": "王马帮-A",
+              "order_desc": "总单:8/1 子单:8/1  26768",
+              "csku": "SDGDN000294008",
+              "mer_name": "智能时代",
+              "key": "ceshifenzhang001",
+              "card_id": "刘平",
+              "create_time": "2024-09-27 09:24:42"
+            },
+            {
+              'type':'none',
               "filtered": "地垫-戈雅-40-60cm水晶绒",
               "from": "王马帮-A",
               "order_desc": "总单:8/1 子单:8/1  26768",
