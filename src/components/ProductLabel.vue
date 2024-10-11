@@ -23,12 +23,16 @@
     <div v-for="(label, index) in displayedLabels" :key="index" class="label-preview">
       <div class="product-label">
         <img :src="label.barcodeUrl" alt="条形码" class="barcode" />
+        <p class="filtered">{{ label.filtered }}</p>
         <div class="product-info">
-          <p class="product-name">{{ label.productName }}</p>
-          <p class="product-code">{{ label.productCode }}</p>
-          <p class="product-date">{{ label.productDate }}</p>
-          <p class="extra-info">{{ label.extraInfo }}</p>
+          <p class="csku">{{ label.csku }}</p>
+          <p class="key">{{ label.key }}</p>
+          <p class="from">{{ label.from }}</p>
+          <p class="order-desc">{{ label.orderDesc }}</p>
+          <p class="create-time">{{ label.createTime }}</p>
+          <p class="mer-name">{{ label.merName }}</p>
         </div>
+        <p class="card-id">{{ label.cardId }}</p>
         <img v-if="label.qrcodeUrl" :src="label.qrcodeUrl" alt="二维码" class="qrcode" />
       </div>
     </div>
@@ -87,42 +91,40 @@ export default {
       }
     },
     async generateBulkLabels() {
-      console.time('生成1000份标签');
-      const batchSize = 100;
-      const totalLabels = 1000;
+      console.time('生成标签');
+      
+      // 模拟API调用获取数据
+      const response = await this.fetchData();
+      const data = response.data.data;
 
       this.labels = [];
       this.displayedLabels = [];
 
-      for (let i = 0; i < totalLabels; i += batchSize) {
-        const batchPromises = [];
-        for (let j = 0; j < batchSize && i + j < totalLabels; j++) {
-          const index = i + j;
-          batchPromises.push(this.generateLabel(index));
-        }
-        const batchResults = await Promise.all(batchPromises);
-        this.labels.push(...batchResults);
+      for (let item of data) {
+        const label = await this.generateLabel(item);
+        this.labels.push(label);
         
         // 只显示前100个标签
         if (this.displayedLabels.length < 100) {
-          this.displayedLabels.push(...batchResults.slice(0, 100 - this.displayedLabels.length));
+          this.displayedLabels.push(label);
         }
       }
 
-      console.timeEnd('生成1000份标签');
+      console.timeEnd('生成标签');
       console.log('标签生成完成，总数:', this.labels.length);
     },
-    async generateLabel(index) {
-      const productCode = `7145YSJA${index.toString().padStart(4, '0')}`;
-      const qrData = productCode;
-      
+    async generateLabel(item) {
       return {
-        barcodeUrl: this.generateBarcode(productCode),
-        qrcodeUrl: await this.generateQRCode(qrData),
-        productName: `模板标签`,
-        productCode: productCode,
-        productDate: '2024-10-11\n2023-01-01',
-        extraInfo: `中文测试123-${index}`
+        barcodeUrl: this.generateBarcode(item.key),
+        qrcodeUrl: await this.generateQRCode(item.csku),
+        filtered: item.filtered,
+        csku: item.csku,
+        key: item.key,
+        from: item.from,
+        orderDesc: item.order_desc,
+        cardId: item.card_id,
+        createTime: item.create_time,
+        merName: item.mer_name  // 添加 mer_name 字段
       };
     },
     async exportPDF() {
@@ -143,29 +145,39 @@ export default {
 
         // 添加中文字体
         pdf.addFont(yaheiFont, 'Yahei', 'normal');
-        pdf.setFont('Yahei');
+        pdf.addFont(yaheiFont, 'Yahei', 'bold');
 
         for (let i = 0; i < this.labels.length; i++) {
           if (i > 0) {
             pdf.addPage([50, 30], 'landscape');
           }
 
-          // 增加条形码高度
-          const barcodeImage = await this.createBarcodeImage(this.labels[i].productCode);
-          pdf.addImage(barcodeImage, 'PNG', 0, 0, 50, 15);
+          const label = this.labels[i];
 
-          // 调整文本位置
-          pdf.setFontSize(6);
-          pdf.text(this.labels[i].productCode, 2, 18);
+          // 添加条形码
+          const barcodeImage = await this.createBarcodeImage(label.key);
+          pdf.addImage(barcodeImage, 'PNG', 0, 0, 50, 10);
+
+          // 添加 filtered（允许两行）
+          pdf.setFont('Yahei', 'bold');
+          pdf.setFontSize(7);
+          pdf.text(label.filtered, 2, 12, { maxWidth: 33, lineHeightFactor: 1.2 });
+
+          // 调整其他文本元素的位置和大小
           pdf.setFontSize(5);
-          pdf.text(this.labels[i].productDate.split('\n')[0], 2, 22);
-          pdf.text(this.labels[i].productDate.split('\n')[1], 2, 26);
-          pdf.setFontSize(4);
-          pdf.text(this.labels[i].extraInfo, 2, 29);
+          const textStartY = 17;
+          pdf.text(label.csku, 2, textStartY);
+          pdf.text(label.key, 2, textStartY + 2);
+          pdf.text(label.from, 2, textStartY + 4);
+          pdf.text(label.orderDesc, 2, textStartY + 6);
+          pdf.text(label.createTime, 2, textStartY + 8);
+          pdf.text(label.merName, 2, textStartY + 10);
 
-          // 调整二维码位置
-          const qrCodeImage = await this.createQRCodeImage(this.labels[i].productCode);
-          pdf.addImage(qrCodeImage, 'PNG', 38, 19, 10, 10);
+          // 调整 card_id 和二维码的位置
+          pdf.setFontSize(6);
+          pdf.text(label.cardId, 48, 16, { align: 'right' }); // 紧靠二维码上方
+          const qrCodeImage = await this.createQRCodeImage(label.csku);
+          pdf.addImage(qrCodeImage, 'PNG', 37, 17, 12, 12);
 
           this.exportProgress = Math.round(((i + 1) / this.labels.length) * 100);
           if (i % 10 === 0) {
@@ -186,7 +198,7 @@ export default {
       JsBarcode(canvas, code, {
         format: "CODE128",
         width: 2,
-        height: 75,  // 增加高度
+        height: 80,  // 减小高度
         displayValue: false
       });
       return canvas.toDataURL('image/png');
@@ -195,8 +207,8 @@ export default {
     async createQRCodeImage(data) {
       return await QRCode.toDataURL(data, {
         errorCorrectionLevel: 'M',
-        margin: 1,
-        width: 100
+        margin: 0,
+        width: 180  // 减小二维码大小
       });
     },
 
@@ -250,10 +262,14 @@ export default {
           <div class="product-label">
             <img src="${label.barcodeUrl}" alt="条形码" class="barcode" />
             <div class="product-info">
-              <p>${label.productCode}</p>
-              <p>${label.productDate.split('\n')[0]}</p>
-              <p>${label.productDate.split('\n')[1]}</p>
-              <p>${label.extraInfo}</p>
+              <p>${label.filtered}</p>
+              <p>${label.csku}</p>
+              <p>${label.key}</p>
+              <p>${label.from}</p>
+              <p>${label.orderDesc}</p>
+              <p>${label.createTime}</p>
+              <p>${label.merName}</p>
+              <p>${label.cardId}</p>
             </div>
             <img src="${label.qrcodeUrl}" alt="二维码" class="qrcode" />
           </div>
@@ -267,53 +283,96 @@ export default {
         printWindow.close();
       };
     },
+
+    // 模拟API调用
+    async fetchData() {
+      // 这里应该是实际的API调用，现在我们直接返回模板数据
+      return {
+        status: 200,
+        message: "success",
+        data: {
+          msg: "查询SKU列表成功",
+          data: [
+            {
+              "filtered": "地垫-戈雅-40-60cm水晶绒",
+              "from": "王马帮-A",
+              "order_desc": "总单:8/1 子单:8/1  26768",
+              "csku": "SDGDN000294008",
+              "mer_name": "智能时代",
+              "key": "ceshifenzhang001",
+              "card_id": "刘平",
+              "create_time": "2024-09-27 09:24:42"
+            },
+            // ... 其他数据项
+          ]
+        }
+      };
+    },
   }
 }
 </script>
 
 <style scoped>
 .label-preview {
-  margin: 20px auto;
-  width: 150mm; /* 放大3倍以便于预览 */
-  height: 90mm; /* 放大3倍以便于预览 */
+  margin: 10px auto;
+  width: 150mm; /* 3倍于PDF的50mm */
+  height: 90mm; /* 3倍于PDF的30mm */
 }
 
 .product-label {
-  padding: 3mm;
+  padding: 0;
   border: 0.3mm solid #000;
-  width: 150mm; /* 放大3倍以便于预览 */
-  height: 90mm; /* 放大3倍以便于预览 */
-  font-size: 6mm; /* 放大3倍以便于预览 */
+  width: 150mm;
+  height: 90mm;
   position: relative;
+  box-sizing: border-box;
 }
 
 .barcode {
-  width: 100%;  /* 改为100%宽度 */
-  height: 45mm; /* 增加高度，放大3倍 */
-  margin: 0;    /* 移除margin */
+  width: 100%;
+  height: 30mm; /* 3倍于PDF中的10mm */
+  margin-bottom: 0;
+}
+
+.filtered {
+  font-size: 4.5mm; /* 保持原有大小 */
+  font-weight: bold;
+  position: absolute;
+  top: 31mm; /* 紧接在条形码下方 */
+  left: 6mm; /* 从左边对齐 */
+  right: 6mm;
+  text-align: left; /* 改为左对齐 */
 }
 
 .product-info {
-  font-size: 6mm; /* 放大3倍 */
+  font-size: 3mm; /* 调整大小 */
   line-height: 1.2;
-  padding-left: 3mm;
   text-align: left;
+  position: absolute;
+  top: 42mm; /* 从 39mm 调整到 42mm,使文字靠下一点 */
+  left: 6mm;
+  right: 45mm; /* 为二维码留出空间 */
 }
 
-.product-name {
-  font-size: 6.6mm; /* 放大3倍 */
+.product-info p {
+  margin: 0.3mm 0; /* 调整间距 */
+  font-weight: bold;
 }
 
-.product-code, .product-date, .extra-info {
-  font-size: 6mm; /* 放大3倍 */
+.card-id {
+  position: absolute;
+  right: 42mm; /* 调整为与二维码左边对齐 */
+  top: 33mm;
+  font-size: 3mm;
+  font-weight: bold;
 }
 
 .qrcode {
-  width: 30mm; /* 放大3倍 */
-  height: 30mm; /* 放大3倍 */
+  width: 36mm; /* 3倍于PDF中的12mm */
+  height: 36mm; /* 3倍于PDF中的12mm */
   position: absolute;
-  right: 3mm;
-  bottom: 3mm;
+  right: 6mm;
+  bottom: 9mm;
 }
 
 @media print {
@@ -328,31 +387,35 @@ export default {
   .product-label {
     width: 50mm;
     height: 30mm;
-    position: relative;
-    box-sizing: border-box;
-    padding: 1mm;
-    page-break-after: always;
+    padding: 0;
   }
   .barcode {
-    width: 50mm;  /* 改为全宽 */
-    height: 15mm; /* 增加高度 */
-    position: absolute;
-    top: 0;      /* 靠顶部 */
-    left: 0;     /* 靠左边 */
+    width: 50mm;
+    height: 10mm; /* 增加打印时的高度 */
+  }
+  .filtered {
+    font-size: 2.7mm;  /* 按比例调整 */
+    top: 10.5mm;
+    left: 1.5mm;
+    right: 14mm;
   }
   .product-info {
+    font-size: 2mm;  /* 按比例调整 */
+    line-height: 1;
+    top: 13mm;
+    left: 1.5mm;
+    right: 14mm;
+  }
+  .card-id {
     font-size: 2mm;
-    line-height: 1.2;
-    position: absolute;
-    top: 16mm;   /* 下移 */
-    left: 2mm;
+    right: 0.5mm;
+    top: 14.3mm;  /* 稍微上移 */
   }
   .qrcode {
-    width: 10mm;
-    height: 10mm;
-    position: absolute;
-    right: 1mm;
-    bottom: 1mm;
+    width: 12mm;
+    height: 12mm;
+    right: 0.5mm;
+    bottom: 3.3mm;
   }
 }
 </style>
