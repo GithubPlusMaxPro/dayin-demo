@@ -21,7 +21,7 @@
     </div>
     <!-- 预览区域 -->
     <div v-for="(label, index) in displayedLabels" :key="index" class="label-preview">
-      <div class="product-label">
+      <div :class="['product-label', label.type]">
         <img :src="label.barcodeUrl" alt="条形码" class="barcode" />
         <p class="filtered">{{ label.filtered }}</p>
         <div class="product-info">
@@ -124,7 +124,8 @@ export default {
         orderDesc: item.order_desc,
         cardId: item.card_id,
         createTime: item.create_time,
-        merName: item.mer_name  // 添加 mer_name 字段
+        merName: item.mer_name,
+        type: item.type  // 添加 type 字段
       };
     },
     async exportPDF() {
@@ -153,6 +154,7 @@ export default {
           }
 
           const label = this.labels[i];
+          const isLeft = label.type === 'left';
 
           // 添加条形码
           const barcodeImage = await this.createBarcodeImage(label.key);
@@ -166,18 +168,24 @@ export default {
           // 调整其他文本元素的位置和大小
           pdf.setFontSize(5);
           const textStartY = 17;
-          pdf.text(label.csku, 2, textStartY);
-          pdf.text(label.key, 2, textStartY + 2);
-          pdf.text(label.from, 2, textStartY + 4);
-          pdf.text(label.orderDesc, 2, textStartY + 6);
-          pdf.text(label.createTime, 2, textStartY + 8);
-          pdf.text(label.merName, 2, textStartY + 10);
+          const textX = isLeft ? 14 : 2;
+          const textAlign = 'left';
+
+          pdf.text(label.csku, textX, textStartY, { align: textAlign });
+          pdf.text(label.key, textX, textStartY + 2, { align: textAlign });
+          pdf.text(label.from, textX, textStartY + 4, { align: textAlign });
+          pdf.text(label.orderDesc, textX, textStartY + 6, { align: textAlign });
+          pdf.text(label.createTime, textX, textStartY + 8, { align: textAlign });
+          pdf.text(label.merName, textX, textStartY + 10, { align: textAlign });
 
           // 调整 card_id 和二维码的位置
-          pdf.setFontSize(6);
-          pdf.text(label.cardId, 48, 16, { align: 'right' }); // 紧靠二维码上方
+          pdf.setFontSize(4); // 减小 card_id 的字体大小
+          const qrCodeX = isLeft ? 1 : 37;
+          const cardIdY = 16.5; // 调整 card_id 的垂直位置，使其更靠近二维码
+          pdf.text(label.cardId, qrCodeX, cardIdY, { align: 'left' }); // 始终从左侧对齐
+
           const qrCodeImage = await this.createQRCodeImage(label.csku);
-          pdf.addImage(qrCodeImage, 'PNG', 37, 17, 12, 12);
+          pdf.addImage(qrCodeImage, 'PNG', qrCodeX, 17, 12, 12);
 
           this.exportProgress = Math.round(((i + 1) / this.labels.length) * 100);
           if (i % 10 === 0) {
@@ -294,6 +302,18 @@ export default {
           msg: "查询SKU列表成功",
           data: [
             {
+              'type':'right',
+              "filtered": "地垫-戈雅-40-60cm水晶绒",
+              "from": "王马帮-A",
+              "order_desc": "总单:8/1 子单:8/1  26768",
+              "csku": "SDGDN000294008",
+              "mer_name": "智能时代",
+              "key": "ceshifenzhang001",
+              "card_id": "刘平",
+              "create_time": "2024-09-27 09:24:42"
+            },
+            {
+              'type':'left',
               "filtered": "地垫-戈雅-40-60cm水晶绒",
               "from": "王马帮-A",
               "order_desc": "总单:8/1 子单:8/1  26768",
@@ -361,10 +381,18 @@ export default {
 
 .card-id {
   position: absolute;
-  right: 42mm; /* 调整为与二维码左边对齐 */
-  top: 33mm;
-  font-size: 3mm;
+  font-size: 2mm; /* 进一步减小字体大小 */
   font-weight: bold;
+}
+
+.product-label.right .card-id {
+  right: 42mm; /* 与二维码左边对齐 */
+  bottom: 45mm; /* 紧贴二维码上方 */
+}
+
+.product-label.left .card-id {
+  left: 6mm; /* 与二维码左边对齐 */
+  bottom: 45mm; /* 紧贴二维码上方 */
 }
 
 .qrcode {
@@ -373,6 +401,25 @@ export default {
   position: absolute;
   right: 6mm;
   bottom: 9mm;
+}
+
+.product-label.right {
+  /* 默认布局，不需要额外样式 */
+}
+
+.product-label.left {
+  /* 左侧布局样式 */
+}
+
+.product-label.left .product-info {
+  left: 45mm; /* 调整为从右侧开始 */
+  right: 6mm;
+  text-align: left; /* 改为左对齐 */
+}
+
+.product-label.left .qrcode {
+  left: 6mm;
+  right: auto;
 }
 
 @media print {
@@ -407,15 +454,33 @@ export default {
     right: 14mm;
   }
   .card-id {
-    font-size: 2mm;
+    font-size: 1.5mm; /* 进一步减小打印时的字体大小 */
+  }
+
+  .product-label.right .card-id {
     right: 0.5mm;
-    top: 14.3mm;  /* 稍微上移 */
+    bottom: 15.3mm; /* 紧贴二维码上方 */
+  }
+
+  .product-label.left .card-id {
+    left: 0.5mm;
+    bottom: 15.3mm; /* 紧贴二维码上方 */
   }
   .qrcode {
     width: 12mm;
     height: 12mm;
     right: 0.5mm;
     bottom: 3.3mm;
+  }
+  .product-label.left .product-info {
+    left: 14mm; /* 调整为从右侧开始 */
+    right: 1.5mm;
+    text-align: left; /* 改为左对齐 */
+  }
+
+  .product-label.left .qrcode {
+    left: 0.5mm;
+    right: auto;
   }
 }
 </style>
