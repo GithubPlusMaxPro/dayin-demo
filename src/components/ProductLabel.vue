@@ -150,22 +150,22 @@ export default {
             pdf.addPage([50, 30], 'landscape');
           }
 
-          // 添加条形码（靠上且更大）
+          // 增加条形码高度
           const barcodeImage = await this.createBarcodeImage(this.labels[i].productCode);
-          pdf.addImage(barcodeImage, 'PNG', 2, 1, 46, 10);
+          pdf.addImage(barcodeImage, 'PNG', 0, 0, 50, 15);
 
-          // 添加文本
+          // 调整文本位置
           pdf.setFontSize(6);
-          pdf.text(this.labels[i].productCode, 2, 14);
+          pdf.text(this.labels[i].productCode, 2, 18);
           pdf.setFontSize(5);
-          pdf.text(this.labels[i].productDate.split('\n')[0], 2, 18);
-          pdf.text(this.labels[i].productDate.split('\n')[1], 2, 22);
+          pdf.text(this.labels[i].productDate.split('\n')[0], 2, 22);
+          pdf.text(this.labels[i].productDate.split('\n')[1], 2, 26);
           pdf.setFontSize(4);
-          pdf.text(this.labels[i].extraInfo, 2, 26);
+          pdf.text(this.labels[i].extraInfo, 2, 29);
 
-          // 添加二维码
+          // 调整二维码位置
           const qrCodeImage = await this.createQRCodeImage(this.labels[i].productCode);
-          pdf.addImage(qrCodeImage, 'PNG', 38, 18, 10, 10);
+          pdf.addImage(qrCodeImage, 'PNG', 38, 19, 10, 10);
 
           this.exportProgress = Math.round(((i + 1) / this.labels.length) * 100);
           if (i % 10 === 0) {
@@ -186,7 +186,7 @@ export default {
       JsBarcode(canvas, code, {
         format: "CODE128",
         width: 2,
-        height: 40,  // 增加高度
+        height: 75,  // 增加高度
         displayValue: false
       });
       return canvas.toDataURL('image/png');
@@ -288,9 +288,9 @@ export default {
 }
 
 .barcode {
-  width: 90%;
-  height: 30mm; /* 放大3倍 */
-  margin: 3mm auto;
+  width: 100%;  /* 改为100%宽度 */
+  height: 45mm; /* 增加高度，放大3倍 */
+  margin: 0;    /* 移除margin */
 }
 
 .product-info {
@@ -334,17 +334,17 @@ export default {
     page-break-after: always;
   }
   .barcode {
-    width: 46mm;
-    height: 10mm;
+    width: 50mm;  /* 改为全宽 */
+    height: 15mm; /* 增加高度 */
     position: absolute;
-    top: 1mm;
-    left: 2mm;
+    top: 0;      /* 靠顶部 */
+    left: 0;     /* 靠左边 */
   }
   .product-info {
     font-size: 2mm;
     line-height: 1.2;
     position: absolute;
-    top: 12mm;
+    top: 16mm;   /* 下移 */
     left: 2mm;
   }
   .qrcode {
