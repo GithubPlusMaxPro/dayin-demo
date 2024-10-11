@@ -22,7 +22,7 @@
     <!-- 预览区域 -->
     <div v-for="(label, index) in displayedLabels" :key="index" class="label-preview">
       <div :class="['product-label', label.type]">
-        <img :src="label.barcodeUrl" alt="条形码" class="barcode" />
+        <img v-if="label.type !== 'none'" :src="label.barcodeUrl" alt="条形码" class="barcode" />
         <p class="filtered">{{ label.filtered }}</p>
         <div class="product-info">
           <p class="csku">{{ label.csku }}</p>
@@ -374,68 +374,84 @@ export default {
   font-size: 4.5mm; /* 保持原有大小 */
   font-weight: bold;
   position: absolute;
-  top: 31mm; /* 紧接在条形码下方 */
-  left: 6mm; /* 从左边对齐 */
+  left: 6mm;
   right: 6mm;
-  text-align: left; /* 改为左对齐 */
+  text-align: left;
+}
+
+.product-label.right .filtered,
+.product-label.left .filtered {
+  top: 31mm;
+}
+
+.product-label.none .filtered {
+  top: 15mm;
 }
 
 .product-info {
-  font-size: 3mm; /* 调整大小 */
+  font-size: 3mm;
   line-height: 1.2;
   text-align: left;
   position: absolute;
-  top: 42mm; /* 从 39mm 调整到 42mm,使文字靠下一点 */
   left: 6mm;
-  right: 45mm; /* 为二维码留出空间 */
+  right: 45mm;
 }
 
-.product-info p {
-  margin: 0.3mm 0; /* 调整间距 */
-  font-weight: bold;
+.product-label.right .product-info,
+.product-label.left .product-info {
+  top: 42mm;
+}
+
+.product-label.none .product-info {
+  top: 30mm;
 }
 
 .card-id {
   position: absolute;
-  font-size: 2mm; /* 进一步减小字体大小 */
+  font-size: 2mm;
   font-weight: bold;
 }
 
+.product-label.right .card-id,
+.product-label.left .card-id {
+  bottom: 45mm;
+}
+
+.product-label.none .card-id {
+  bottom: 33mm;
+}
+
 .product-label.right .card-id {
-  right: 42mm; /* 与二维码左边对齐 */
-  bottom: 45mm; /* 紧贴二维码上方 */
+  right: 42mm;
 }
 
 .product-label.left .card-id {
-  left: 6mm; /* 与二维码左边对齐 */
-  bottom: 45mm; /* 紧贴二维码上方 */
+  left: 6mm;
+}
+
+.product-label.none .card-id {
+  right: 42mm;
 }
 
 .qrcode {
-  width: 36mm; /* 3倍于PDF中的12mm */
-  height: 36mm; /* 3倍于PDF中的12mm */
+  width: 36mm;
+  height: 36mm;
   position: absolute;
-  right: 6mm;
   bottom: 9mm;
 }
 
-.product-label.right {
-  /* 默认布局，不需要额外样式 */
-}
-
-.product-label.left {
-  /* 左侧布局样式 */
-}
-
-.product-label.left .product-info {
-  left: 45mm; /* 调整为从右侧开始 */
+.product-label.right .qrcode,
+.product-label.none .qrcode {
   right: 6mm;
-  text-align: left; /* 改为左对齐 */
 }
 
 .product-label.left .qrcode {
   left: 6mm;
-  right: auto;
+}
+
+.product-label.left .product-info {
+  left: 45mm;
+  right: 6mm;
 }
 
 @media print {
