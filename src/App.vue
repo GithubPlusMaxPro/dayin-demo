@@ -1,15 +1,21 @@
 <template>
-  <img alt="Vue logo" src="./assets/logo.png">
-  <HelloWorld msg="Welcome to Your Vue.js App"/>
+  <div id="app">
+    <h1>测试页面</h1>
+    <p>如果您能看到这段文字，说明 App.vue 已正确加载</p>
+    <ProductLabel />
+  </div>
 </template>
 
 <script>
-import HelloWorld from './components/HelloWorld.vue'
+import ProductLabel from './components/ProductLabel.vue'
 
 export default {
   name: 'App',
   components: {
-    HelloWorld
+    ProductLabel
+  },
+  mounted() {
+    console.log('App 组件已挂载')
   }
 }
 </script>
