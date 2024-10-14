@@ -1,7 +1,7 @@
 <template>
   <div id="app">
-    <h1>测试页面</h1>
-    <p>如果您能看到这段文字，说明 App.vue 已正确加载</p>
+    <h1>时丰系统标签码打印</h1>
+    <p>先生成标签码，然后导出PDF</p>
     <ProductLabel />
   </div>
 </template>

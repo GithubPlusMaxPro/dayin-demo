@@ -1,7 +1,7 @@
 /* eslint-disable */
 <template>
   <div>
-    <button @click="generateBulkLabels">生成1000份标签</button>
+    <button @click="generateBulkLabels">生成标签码</button>
     <button @click="exportPDF" :disabled="labels.length === 0">导出PDF</button>
     <button @click="printLabels" :disabled="labels.length === 0">打印标签</button>
     <div v-if="isExporting" class="export-progress">
