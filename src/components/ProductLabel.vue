@@ -1,41 +1,32 @@
 /* eslint-disable */
 <template>
   <div>
-    <button @click="generateBulkLabels">生成标签码</button>
-    <button @click="exportPDF" :disabled="labels.length === 0">导出PDF</button>
-    <button @click="printLabels" :disabled="labels.length === 0">打印标签</button>
+    <!-- 添加总体进度条 -->
+    <div v-if="isProcessing" class="progress-bar">
+      <div :style="{ width: `${overallProgress}%` }"></div>
+    </div>
+    <div v-if="isProcessing" class="progress-text">
+      {{ progressText }}
+    </div>
+    
+    <!-- 优化按钮显示 -->
+    <div class="button-container">
+      <button @click="exportPDF" :disabled="labels.length === 0 || isExporting" class="action-button">
+        {{ isExporting ? '正在导出...' : '导出PDF' }}
+      </button>
+      <button @click="restart" v-if="isProcessing && overallProgress === 100" class="action-button">重新开始</button>
+    </div>
+
     <div v-if="isExporting" class="export-progress">
       正在导出: {{ exportProgress }}%
     </div>
-    <div id="labelTemplate" class="label-preview" style="display: none;">
-      <div class="product-label">
-        <img id="barcodeTemplate" alt="条形码" class="barcode" />
-        <div class="product-info">
-          <p class="product-name">{{ templateLabel.productName }}</p>
-          <p class="product-code">{{ templateLabel.productCode }}</p>
-          <p class="product-date">{{ templateLabel.productDate }}</p>
-          <p class="extra-info">{{ templateLabel.extraInfo }}</p>
-        </div>
-        <img id="qrcodeTemplate" alt="二维码" class="qrcode" />
-      </div>
-    </div>
-    <!-- 预览区域 -->
+
+    <!-- 隐藏标签码预览 -->
+    <!--
     <div v-for="(label, index) in displayedLabels" :key="index" class="label-preview">
-      <div :class="['product-label', label.type]">
-        <img v-if="label.type !== 'none'" :src="label.barcodeUrl" alt="条形码" class="barcode" />
-        <p class="filtered">{{ label.filtered }}</p>
-        <div class="product-info">
-          <p class="csku">{{ label.csku }}</p>
-          <p class="key">{{ label.key }}</p>
-          <p class="from">{{ label.from }}</p>
-          <p class="order-desc">{{ label.orderDesc }}</p>
-          <p class="create-time">{{ label.createTime }}</p>
-          <p class="mer-name">{{ label.merName }}</p>
-        </div>
-        <p class="card-id">{{ label.cardId }}</p>
-        <img v-if="label.qrcodeUrl" :src="label.qrcodeUrl" alt="二维码" class="qrcode" />
-      </div>
+      ...
     </div>
+    -->
   </div>
 </template>
 
@@ -60,7 +51,11 @@ export default {
         productCode: 'TEMPLATE',
         productDate: '2023-01-01',
         extraInfo: '模板信息'
-      }
+      },
+      // 添加新的数据属性
+      isProcessing: false,
+      overallProgress: 0,
+      progressText: '',
     }
   },
   methods: {
@@ -93,21 +88,24 @@ export default {
     async generateBulkLabels() {
       console.time('生成标签');
       
-      // 模拟API调用获取数据
       const response = await this.fetchData();
       const data = response.data.data;
 
       this.labels = [];
       this.displayedLabels = [];
 
-      for (let item of data) {
+      const totalLabels = data.length;
+      for (let i = 0; i < totalLabels; i++) {
+        const item = data[i];
         const label = await this.generateLabel(item);
         this.labels.push(label);
         
-        // 只显示前100个标签
         if (this.displayedLabels.length < 100) {
           this.displayedLabels.push(label);
         }
+
+        // 更新进度
+        this.overallProgress = Math.round((i + 1) / totalLabels * 25); // 生成标签占总进度的25%
       }
 
       console.timeEnd('生成标签');
@@ -192,6 +190,7 @@ export default {
           pdf.addImage(qrCodeImage, 'PNG', qrCodeX, qrCodeY, 12, 12);
 
           this.exportProgress = Math.round(((i + 1) / this.labels.length) * 100);
+          this.overallProgress = 50 + Math.round(this.exportProgress / 2); // PDF导出占总进度的50%
           if (i % 10 === 0) {
             await new Promise(resolve => setTimeout(resolve, 0));
           }
@@ -353,6 +352,43 @@ export default {
         };
       }
     },
+
+    // 添加新的方法
+    async autoProcess() {
+      this.isProcessing = true;
+      this.overallProgress = 0;
+      this.progressText = '正在生成标签...';
+
+      await this.generateBulkLabels();
+      this.overallProgress = 50;
+      this.progressText = '正在导出PDF...';
+
+      await this.exportPDF();
+      this.overallProgress = 100;
+      this.progressText = '处理完成';
+
+      // 移除这个 setTimeout
+      // setTimeout(() => {
+      //   this.isProcessing = false;
+      // }, 2000);
+
+      // 处理完成后,保持 isProcessing 为 true
+      this.isProcessing = true;
+    },
+
+    restart() {
+      this.labels = [];
+      this.displayedLabels = [];
+      this.isExporting = false;
+      this.exportProgress = 0;
+      this.overallProgress = 0;
+      this.progressText = '';
+      this.autoProcess();
+    },
+  },
+  // 添加 mounted 生命周期钩子
+  mounted() {
+    this.autoProcess();
   }
 }
 </script>
@@ -523,5 +559,60 @@ export default {
     left: 0.5mm;
     right: auto;
   }
+}
+
+/* 添加进度条样式 */
+.progress-bar {
+  width: 100%;
+  height: 20px;
+  background-color: #f0f0f0;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.progress-bar > div {
+  height: 100%;
+  background-color: #4CAF50;
+  transition: width 0.5s;
+}
+
+.progress-text {
+  text-align: center;
+  margin-top: 10px;
+  font-weight: bold;
+}
+
+/* 添加新的样式 */
+.button-container {
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.action-button {
+  padding: 10px 20px;
+  margin: 0 10px;
+  font-size: 16px;
+  color: white;
+  background-color: #4CAF50;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.action-button:hover {
+  background-color: #45a049;
+}
+
+.action-button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+.export-progress {
+  text-align: center;
+  margin-top: 10px;
+  font-weight: bold;
 }
 </style>
