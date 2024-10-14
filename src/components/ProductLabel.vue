@@ -114,20 +114,20 @@ export default {
       console.log('标签生成完成，总数:', this.labels.length);
     },
     async generateLabel(item) {
-      return {
-        barcodeUrl: this.generateBarcode(item.key),
-        qrcodeUrl: await this.generateQRCode(item.csku),
-        filtered: item.filtered,
-        csku: item.csku,
-        key: item.key,
-        from: item.from,
-        orderDesc: item.order_desc,
-        cardId: item.card_id,
-        createTime: item.create_time,
-        merName: item.mer_name,
-        type: item.type  // 添加 type 字段
-      };
-    },
+    return {
+      barcodeUrl: this.generateBarcode(String(item.key || '')),
+      qrcodeUrl: await this.generateQRCode(String(item.csku || '')),
+      filtered: String(item.filtered || ''),
+      csku: String(item.csku || ''),
+      key: String(item.key || ''),
+      from: String(item.from || ''),
+      orderDesc: String(item.order_desc || ''),
+      cardId: String(item.card_id || ''),
+      createTime: String(item.create_time || ''),
+      merName: String(item.mer_name || ''),
+      type: String(item.type || 'none')
+    };
+  },
     async exportPDF() {
       if (this.labels.length === 0) {
         console.warn('没有标签可以导出');
@@ -167,26 +167,25 @@ export default {
           pdf.setFont('Yahei', 'bold');
           pdf.setFontSize(7);
           const filteredY = isNone ? 5 : 12; // 调整 none 类型时 filtered 的位置
-          pdf.text(label.filtered, 2, filteredY, { maxWidth: 33, lineHeightFactor: 1.2 });
+          pdf.text(String(label.filtered || ''), 2, filteredY, { maxWidth: 33, lineHeightFactor: 1.2 });
 
           // 调整其他文本元素的位置和大小
           pdf.setFontSize(5);
           const textStartY = isNone ? 10 : 17; // 调整 none 类型时文本的起始位置
           const textX = isLeft ? 14 : 2;
-          const textAlign = 'left';
 
-          pdf.text(label.csku, textX, textStartY, { align: textAlign });
-          pdf.text(label.key, textX, textStartY + 2, { align: textAlign });
-          pdf.text(label.from, textX, textStartY + 4, { align: textAlign });
-          pdf.text(label.orderDesc, textX, textStartY + 6, { align: textAlign });
-          pdf.text(label.createTime, textX, textStartY + 8, { align: textAlign });
-          pdf.text(label.merName, textX, textStartY + 10, { align: textAlign });
+          pdf.text(String(label.csku || ''), textX, textStartY);
+          pdf.text(String(label.key || ''), textX, textStartY + 2);
+          pdf.text(String(label.from || ''), textX, textStartY + 4);
+          pdf.text(String(label.orderDesc || ''), textX, textStartY + 6);
+          pdf.text(String(label.createTime || ''), textX, textStartY + 8);
+          pdf.text(String(label.merName || ''), textX, textStartY + 10);
 
           // 调整 card_id 和二维码的位置
           pdf.setFontSize(4);
           const qrCodeX = isNone ? 37 : (isLeft ? 1 : 37);
           const cardIdY = isNone ? 9.5 : 16.5; // 调整 none 类型时 card_id 的位置
-          pdf.text(label.cardId, qrCodeX, cardIdY, { align: 'left' });
+          pdf.text(String(label.cardId || ''), qrCodeX, cardIdY);
 
           const qrCodeImage = await this.createQRCodeImage(label.csku);
           const qrCodeY = isNone ? 10 : 17; // 调整 none 类型时二维码的位置
@@ -299,18 +298,42 @@ export default {
 
     async fetchData() {
       try {
-        // 从 URL 获取 API 地址
-        const urlParams = new URLSearchParams(window.location.search);
-        let apiUrl = urlParams.get('api_url');
+        // 获取完整的URL
+        const fullUrl = window.location.href;
+        
+        // 使用 URL 对象解析 URL
+        const url = new URL(fullUrl);
+        
+        // 获取 api_url 参数
+        let apiUrl = url.searchParams.get('api_url');
         
         if (!apiUrl) {
           throw new Error('API 地址未提供');
         }
 
-        // 对 API URL 进行编码
-        apiUrl = encodeURIComponent(apiUrl);
+        // 处理 api_url 中的双问号
+        apiUrl = apiUrl.replace('??', '?');
 
-        const response = await fetch(decodeURIComponent(apiUrl));
+        // 创建一个新的 URL 对象来处理 apiUrl
+        const apiUrlObj = new URL(apiUrl);
+
+        // 获取原始 apiUrl 中的所有参数
+        const apiParams = new URLSearchParams(apiUrlObj.search);
+
+        // 从原始 URL 获取所有参数
+        for (const [key, value] of url.searchParams.entries()) {
+          if (key !== 'api_url') {
+            apiParams.set(key, value);
+          }
+        }
+
+        // 重建 apiUrl
+        apiUrlObj.search = apiParams.toString();
+        apiUrl = apiUrlObj.toString();
+
+        console.log('Fetching data from:', apiUrl);  // 用于调试
+
+        const response = await fetch(apiUrl);
         const data = await response.json();
         
         if (data.status === 200 && data.message === "success") {
@@ -320,7 +343,6 @@ export default {
         }
       } catch (error) {
         console.error('获取数据失败:', error);
-        // 在实际生产环境中,您可能想要显示一个错误消息给用户
         return {
           status: 500,
           message: "error",
