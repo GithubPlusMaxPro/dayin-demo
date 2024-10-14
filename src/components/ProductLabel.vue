@@ -1,13 +1,15 @@
 /* eslint-disable */
 <template>
   <div>
-    <!-- 添加总体进度条 -->
+    <!-- 保留总体进度条 -->
     <div v-if="isProcessing" class="progress-bar">
       <div :style="{ width: `${overallProgress}%` }"></div>
     </div>
     <div v-if="isProcessing" class="progress-text">
       {{ progressText }}
     </div>
+    
+    <!-- 移除生成标签的专用进度条 -->
     
     <!-- 优化按钮显示 -->
     <div class="button-container">
@@ -56,6 +58,8 @@ export default {
       isProcessing: false,
       overallProgress: 0,
       progressText: '',
+      isGeneratingLabels: false,
+      generateProgress: 0,
     }
   },
   methods: {
@@ -104,8 +108,13 @@ export default {
           this.displayedLabels.push(label);
         }
 
-        // 更新进度
-        this.overallProgress = Math.round((i + 1) / totalLabels * 25); // 生成标签占总进度的25%
+        // 更新总体进度
+        this.overallProgress = Math.round((i + 1) / totalLabels * 50); // 生成标签占总进度的50%
+        this.progressText = `正在生成标签... (${this.overallProgress}%)`;
+        
+        if (i % 10 === 0) {
+          await new Promise(resolve => setTimeout(resolve, 0));
+        }
       }
 
       console.timeEnd('生成标签');
@@ -196,7 +205,8 @@ export default {
           }
         }
 
-        pdf.save('bulk_labels.pdf');
+        // 修改这一行
+        pdf.save('时丰标签码下载.pdf');
       } catch (error) {
         console.error('PDF导出错误:', error);
       } finally {
@@ -360,17 +370,11 @@ export default {
       this.progressText = '正在生成标签...';
 
       await this.generateBulkLabels();
-      this.overallProgress = 50;
       this.progressText = '正在导出PDF...';
 
       await this.exportPDF();
       this.overallProgress = 100;
       this.progressText = '处理完成';
-
-      // 移除这个 setTimeout
-      // setTimeout(() => {
-      //   this.isProcessing = false;
-      // }, 2000);
 
       // 处理完成后,保持 isProcessing 为 true
       this.isProcessing = true;
@@ -614,5 +618,10 @@ export default {
   text-align: center;
   margin-top: 10px;
   font-weight: bold;
+}
+
+/* 可以为生成标签的进度条添加特定样式,如果需要的话 */
+.progress-bar.generate-progress {
+  /* 特定样式 */
 }
 </style>
