@@ -172,17 +172,17 @@ export default {
           const isNone = label.type === 'none';
           const isNoQRCode = label.type === 'noqrcode';
 
-          // 只有在非 none 类型时添加条形码
+          // 只有在非 none 类��时添加条形码
           if (!isNone) {
             const barcodeImage = await this.createBarcodeImage(label.key);
             pdf.addImage(barcodeImage, 'PNG', 0, 0, 50, 10);
           }
 
-          // 添加 filtered（允许两行）
+          // 修改 filtered 的显示方式
           pdf.setFont('Yahei', 'bold');
           pdf.setFontSize(7);
           const filteredY = isNone ? 5 : 12;
-          pdf.text(String(label.filtered || ''), 2, filteredY, { maxWidth: 33, lineHeightFactor: 1.2 });
+          pdf.text(String(label.filtered || ''), 2, filteredY, { maxWidth: 46, lineHeightFactor: 1.2 }); // 增加最大宽度
 
           // 调整其他文本元素的位置和大小
           pdf.setFontSize(5);
