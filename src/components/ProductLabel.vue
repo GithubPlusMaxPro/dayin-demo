@@ -1,6 +1,11 @@
 /* eslint-disable */
 <template>
   <div>
+    <!-- 添加错误信息显示 -->
+    <div v-if="errorMessage" class="error-message">
+      {{ errorMessage }}
+    </div>
+    
     <!-- 保留总体进度条 -->
     <div v-if="isProcessing" class="progress-bar">
       <div :style="{ width: `${overallProgress}%` }"></div>
@@ -60,6 +65,7 @@ export default {
       progressText: '',
       isGeneratingLabels: false,
       generateProgress: 0,
+      errorMessage: '', // 添加错误信息属性
     }
   },
   methods: {
@@ -346,17 +352,19 @@ export default {
         const data = await response.json();
         
         if (data.status === 200 && data.message === "success") {
+          this.errorMessage = ''; // 清除错误信息
           return data;
         } else {
-          throw new Error('API 响应不成功');
+          throw new Error(data.message || '接口响应不成功');
         }
       } catch (error) {
         console.error('获取数据失败:', error);
+        this.errorMessage = error.message || '获取数据失败';
         return {
-          status: 500,
+          status: error.status || 500,
           message: "error",
           data: {
-            msg: "获取SKU列表失败",
+            msg: error.message || "获取SKU列表失败",
             data: []
           }
         };
@@ -368,6 +376,14 @@ export default {
       this.isProcessing = true;
       this.overallProgress = 0;
       this.progressText = '正在生成标签...';
+      this.errorMessage = ''; // 清除之前的错误信息
+
+      const response = await this.fetchData();
+      if (response.status !== 200) {
+        this.errorMessage = response.data.msg || '处理失败';
+        this.isProcessing = false;
+        return;
+      }
 
       await this.generateBulkLabels();
       this.progressText = '正在导出PDF...';
@@ -376,7 +392,6 @@ export default {
       this.overallProgress = 100;
       this.progressText = '处理完成';
 
-      // 处理完成后,保持 isProcessing 为 true
       this.isProcessing = true;
     },
 
@@ -623,5 +638,17 @@ export default {
 /* 可以为生成标签的进度条添加特定样式,如果需要的话 */
 .progress-bar.generate-progress {
   /* 特定样式 */
+}
+
+/* 添加错误信息样式 */
+.error-message {
+  color: red;
+  font-weight: bold;
+  text-align: center;
+  margin: 20px 0;
+  padding: 10px;
+  background-color: #ffeeee;
+  border: 1px solid #ffcccc;
+  border-radius: 5px;
 }
 </style>
