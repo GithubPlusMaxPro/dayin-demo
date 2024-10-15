@@ -127,20 +127,21 @@ export default {
       console.log('标签生成完成，总数:', this.labels.length);
     },
     async generateLabel(item) {
-    return {
-      barcodeUrl: this.generateBarcode(String(item.key || '')),
-      qrcodeUrl: await this.generateQRCode(String(item.csku || '')),
-      filtered: String(item.filtered || ''),
-      csku: String(item.csku || ''),
-      key: String(item.key || ''),
-      from: String(item.from || ''),
-      orderDesc: String(item.order_desc || ''),
-      cardId: String(item.card_id || ''),
-      createTime: String(item.create_time || ''),
-      merName: String(item.mer_name || ''),
-      type: String(item.type || 'none')
-    };
-  },
+      const isNoQRCode = String(item.type || '') === 'noqrcode';
+      return {
+        barcodeUrl: this.generateBarcode(String(item.key || '')),
+        qrcodeUrl: isNoQRCode ? null : await this.generateQRCode(String(item.csku || '')),
+        filtered: String(item.filtered || ''),
+        csku: String(item.csku || ''),
+        key: String(item.key || ''),
+        from: String(item.from || ''),
+        orderDesc: String(item.order_desc || ''),
+        cardId: String(item.card_id || ''),
+        createTime: String(item.create_time || ''),
+        merName: String(item.mer_name || ''),
+        type: String(item.type || 'none')
+      };
+    },
     async exportPDF() {
       if (this.labels.length === 0) {
         console.warn('没有标签可以导出');
@@ -169,6 +170,7 @@ export default {
           const label = this.labels[i];
           const isLeft = label.type === 'left';
           const isNone = label.type === 'none';
+          const isNoQRCode = label.type === 'noqrcode';
 
           // 只有在非 none 类型时添加条形码
           if (!isNone) {
@@ -179,12 +181,12 @@ export default {
           // 添加 filtered（允许两行）
           pdf.setFont('Yahei', 'bold');
           pdf.setFontSize(7);
-          const filteredY = isNone ? 5 : 12; // 调整 none 类型时 filtered 的位置
+          const filteredY = isNone ? 5 : 12;
           pdf.text(String(label.filtered || ''), 2, filteredY, { maxWidth: 33, lineHeightFactor: 1.2 });
 
           // 调整其他文本元素的位置和大小
           pdf.setFontSize(5);
-          const textStartY = isNone ? 10 : 17; // 调整 none 类型时文本的起始位置
+          const textStartY = isNone ? 10 : 17;
           const textX = isLeft ? 14 : 2;
 
           pdf.text(String(label.csku || ''), textX, textStartY);
@@ -197,21 +199,22 @@ export default {
           // 调整 card_id 和二维码的位置
           pdf.setFontSize(4);
           const qrCodeX = isNone ? 37 : (isLeft ? 1 : 37);
-          const cardIdY = isNone ? 9.5 : 16.5; // 调整 none 类型时 card_id 的位置
+          const cardIdY = isNone ? 9.5 : 16.5;
           pdf.text(String(label.cardId || ''), qrCodeX, cardIdY);
 
-          const qrCodeImage = await this.createQRCodeImage(label.csku);
-          const qrCodeY = isNone ? 10 : 17; // 调整 none 类型时二维码的位置
-          pdf.addImage(qrCodeImage, 'PNG', qrCodeX, qrCodeY, 12, 12);
+          // 只有在非noqrcode类型且二维码URL存在时添加二维码
+          if (!isNoQRCode && label.qrcodeUrl) {
+            const qrCodeY = isNone ? 10 : 17;
+            pdf.addImage(label.qrcodeUrl, 'PNG', qrCodeX, qrCodeY, 12, 12);
+          }
 
           this.exportProgress = Math.round(((i + 1) / this.labels.length) * 100);
-          this.overallProgress = 50 + Math.round(this.exportProgress / 2); // PDF导出占总进度的50%
+          this.overallProgress = 50 + Math.round(this.exportProgress / 2);
           if (i % 10 === 0) {
             await new Promise(resolve => setTimeout(resolve, 0));
           }
         }
 
-        // 修改这一行
         pdf.save('时丰标签码下载.pdf');
       } catch (error) {
         console.error('PDF导出错误:', error);
@@ -355,7 +358,7 @@ export default {
           this.errorMessage = ''; // 清除错误信息
           return data;
         } else {
-          throw new Error(data.message || '接口响应不成功');
+          throw new Error(data.message || '接口响应成功');
         }
       } catch (error) {
         console.error('获取数据失败:', error);
