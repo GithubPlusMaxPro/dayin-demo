@@ -172,7 +172,7 @@ export default {
           const isNone = label.type === 'none';
           const isNoQRCode = label.type === 'noqrcode';
 
-          // 只有在非 none 类��时添加条形码
+          // 只有在非 none 类型时添加条形码
           if (!isNone) {
             const barcodeImage = await this.createBarcodeImage(label.key);
             pdf.addImage(barcodeImage, 'PNG', 0, 0, 50, 10);
@@ -182,16 +182,22 @@ export default {
           pdf.setFont('Yahei', 'bold');
           pdf.setFontSize(7);
           const filteredY = isNone ? 5 : 12;
-          pdf.text(String(label.filtered || ''), 2, filteredY, { maxWidth: 46, lineHeightFactor: 1.2 }); // 增加最大宽度
+          pdf.text(String(label.filtered || ''), 2, filteredY, { maxWidth: 46, lineHeightFactor: 1.2 });
 
           // 调整其他文本元素的位置和大小
           pdf.setFontSize(5);
           const textStartY = isNone ? 10 : 17;
           const textX = isLeft ? 14 : 2;
 
-          pdf.text(String(label.csku || ''), textX, textStartY);
-          pdf.text(String(label.key || ''), textX, textStartY + 2);
-          pdf.text(String(label.from || ''), textX, textStartY + 4);
+          // 将 from 字段移到 csku 上面，并使其更加醒目
+          pdf.setFont('Yahei', 'bold');
+          pdf.setFontSize(6);
+          pdf.text(String(label.from || ''), textX, textStartY);
+
+          pdf.setFont('Yahei', 'normal');
+          pdf.setFontSize(5);
+          pdf.text(String(label.csku || ''), textX, textStartY + 2);
+          pdf.text(String(label.key || ''), textX, textStartY + 4);
           pdf.text(String(label.orderDesc || ''), textX, textStartY + 6);
           pdf.text(String(label.createTime || ''), textX, textStartY + 8);
           pdf.text(String(label.merName || ''), textX, textStartY + 10);
@@ -653,5 +659,13 @@ export default {
   background-color: #ffeeee;
   border: 1px solid #ffcccc;
   border-radius: 5px;
+}
+
+/* 添加 from 字段的特殊样式 */
+.from-field {
+  font-size: 3.5mm;
+  font-weight: bold;
+  color: #0066cc;
+  margin-bottom: 1mm;
 }
 </style>
