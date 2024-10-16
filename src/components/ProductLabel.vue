@@ -172,7 +172,7 @@ export default {
           const isNone = label.type === 'none';
           const isNoQRCode = label.type === 'noqrcode';
 
-          // 只有在非 none ��时添加条形码
+          // 只有在非 none 时添加条形码
           if (!isNone) {
             const barcodeImage = await this.createBarcodeImage(label.key);
             pdf.addImage(barcodeImage, 'PNG', 0, 0, 50, 10);
@@ -180,12 +180,12 @@ export default {
 
           // 修改 filtered 的显示方式
           pdf.setFont('Yahei', 'bold');
-          pdf.setFontSize(7);
+          pdf.setFontSize(8); // 将字体大小从7增加到8
           const filteredY = isNone ? 5 : 12;
           pdf.text(String(label.filtered || ''), 2, filteredY, { maxWidth: 46, lineHeightFactor: 1.2 });
 
           // 调整文本元素的位置和大小
-          const textStartY = isNone ? 11 : 18;  // 整体上移 1mm
+          const textStartY = isNone ? 11 : 18.5;  // 整体上移 1mm
           const textX = isLeft ? 14 : 2;
 
           // 将 from 字段移到 csku 上面，并使其更加醒目
@@ -668,3 +668,4 @@ export default {
   margin-bottom: 1mm;
 }
 </style>
+
