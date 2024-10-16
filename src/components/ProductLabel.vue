@@ -172,7 +172,7 @@ export default {
           const isNone = label.type === 'none';
           const isNoQRCode = label.type === 'noqrcode';
 
-          // 只有在非 none 类型时添加条形码
+          // 只有在非 none ��时添加条形码
           if (!isNone) {
             const barcodeImage = await this.createBarcodeImage(label.key);
             pdf.addImage(barcodeImage, 'PNG', 0, 0, 50, 10);
@@ -184,33 +184,32 @@ export default {
           const filteredY = isNone ? 5 : 12;
           pdf.text(String(label.filtered || ''), 2, filteredY, { maxWidth: 46, lineHeightFactor: 1.2 });
 
-          // 调整其他文本元素的位置和大小
-          pdf.setFontSize(5);
-          const textStartY = isNone ? 10 : 17;
+          // 调整文本元素的位置和大小
+          const textStartY = isNone ? 11 : 18;  // 整体上移 1mm
           const textX = isLeft ? 14 : 2;
 
           // 将 from 字段移到 csku 上面，并使其更加醒目
           pdf.setFont('Yahei', 'bold');
-          pdf.setFontSize(6);
+          pdf.setFontSize(8);
           pdf.text(String(label.from || ''), textX, textStartY);
 
           pdf.setFont('Yahei', 'normal');
           pdf.setFontSize(5);
-          pdf.text(String(label.csku || ''), textX, textStartY + 2);
-          pdf.text(String(label.key || ''), textX, textStartY + 4);
-          pdf.text(String(label.orderDesc || ''), textX, textStartY + 6);
-          pdf.text(String(label.createTime || ''), textX, textStartY + 8);
-          pdf.text(String(label.merName || ''), textX, textStartY + 10);
+          pdf.text(String(label.csku || ''), textX, textStartY + 2.5);
+          pdf.text(String(label.key || ''), textX, textStartY + 4.5);
+          pdf.text(String(label.orderDesc || ''), textX, textStartY + 6.5);
+          pdf.text(String(label.createTime || ''), textX, textStartY + 8.5);
+          pdf.text(String(label.merName || ''), textX, textStartY + 10.5);
 
-          // 调整 card_id 和二维码的位置
+          // 调整 card_id 的位置，但保持二维码位置不变
           pdf.setFontSize(4);
           const qrCodeX = isNone ? 37 : (isLeft ? 1 : 37);
-          const cardIdY = isNone ? 9.5 : 16.5;
+          const cardIdY = isNone ? 9.5 : 16.5;  // 恢复原来的位置
           pdf.text(String(label.cardId || ''), qrCodeX, cardIdY);
 
           // 只有在非noqrcode类型且二维码URL存在时添加二维码
           if (!isNoQRCode && label.qrcodeUrl) {
-            const qrCodeY = isNone ? 10 : 17;
+            const qrCodeY = isNone ? 10 : 17;  // 恢复原来的位置
             pdf.addImage(label.qrcodeUrl, 'PNG', qrCodeX, qrCodeY, 12, 12);
           }
 
@@ -664,7 +663,7 @@ export default {
 /* 添加 from 字段的特殊样式 */
 .from-field {
   font-size: 3.5mm;
-  font-weight: bold;
+  font-weight: bold;  /* 加粗 */
   color: #0066cc;
   margin-bottom: 1mm;
 }
