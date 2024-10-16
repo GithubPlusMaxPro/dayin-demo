@@ -180,15 +180,14 @@ export default {
 
           // 修改 filtered 的显示方式
           pdf.setFont('Yahei', 'bold');
-          pdf.setFontSize(8); // 将字体大小从7增加到8
+          pdf.setFontSize(8);
           const filteredY = isNone ? 5 : 12;
           pdf.text(String(label.filtered || ''), 2, filteredY, { maxWidth: 46, lineHeightFactor: 1.2 });
 
           // 调整文本元素的位置和大小
-          const textStartY = isNone ? 11 : 18.5;  // 整体上移 1mm
+          const textStartY = isNone ? 11 : 18.5;
           const textX = isLeft ? 14 : 2;
 
-          // 将 from 字段移到 csku 上面，并使其更加醒目
           pdf.setFont('Yahei', 'bold');
           pdf.setFontSize(8);
           pdf.text(String(label.from || ''), textX, textStartY);
@@ -198,18 +197,18 @@ export default {
           pdf.text(String(label.csku || ''), textX, textStartY + 2.5);
           pdf.text(String(label.key || ''), textX, textStartY + 4.5);
           pdf.text(String(label.orderDesc || ''), textX, textStartY + 6.5);
-          pdf.text(String(label.createTime || ''), textX, textStartY + 8.5);
+          
+          // 将 card_id 和 createTime 放在一起
+          pdf.text(`${label.cardId || ''} ${label.createTime || ''}`, textX, textStartY + 8.5);
+          
           pdf.text(String(label.merName || ''), textX, textStartY + 10.5);
 
-          // 调整 card_id 的位置，但保持二维码位置不变
-          pdf.setFontSize(4);
+          // 调整 QR 码的位置
           const qrCodeX = isNone ? 37 : (isLeft ? 1 : 37);
-          const cardIdY = isNone ? 9.5 : 16.5;  // 恢复原来的位置
-          pdf.text(String(label.cardId || ''), qrCodeX, cardIdY);
+          const qrCodeY = isNone ? 10 : 17;
 
           // 只有在非noqrcode类型且二维码URL存在时添加二维码
           if (!isNoQRCode && label.qrcodeUrl) {
-            const qrCodeY = isNone ? 10 : 17;  // 恢复原来的位置
             pdf.addImage(label.qrcodeUrl, 'PNG', qrCodeX, qrCodeY, 12, 12);
           }
 
@@ -415,6 +414,8 @@ export default {
   },
   // 添加 mounted 生命周期钩子
   mounted() {
+    // 更改页面标题
+    document.title = '时丰标签码打印系统';
     this.autoProcess();
   }
 }
@@ -551,7 +552,7 @@ export default {
     right: 14mm;
   }
   .product-info {
-    font-size: 2mm;  /* 按比例调整 */
+    font-size: 2mm;  /* 比例调整 */
     line-height: 1;
     top: 13mm;
     left: 1.5mm;
@@ -668,4 +669,3 @@ export default {
   margin-bottom: 1mm;
 }
 </style>
-
