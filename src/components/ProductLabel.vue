@@ -356,9 +356,20 @@ export default {
         
         if (data.status === 200 && data.message === "success") {
           this.errorMessage = ''; // 清除错误信息
+          if (!data.data || !data.data.data || data.data.data.length === 0) {
+            this.errorMessage = '获取到的数据为空';
+            return {
+              status: 200,
+              message: "success",
+              data: {
+                msg: "获取到的数据为空",
+                data: []
+              }
+            };
+          }
           return data;
         } else {
-          throw new Error(data.message || '接口响应成功');
+          throw new Error(data.message || '接口响应失败');
         }
       } catch (error) {
         console.error('获取数据失败:', error);
