@@ -351,11 +351,16 @@ export default {
 
         console.log('Fetching data from:', apiUrl);  // 用于调试
 
-        // 从 cookie 中获取 Token
-        const token = this.getTokenFromCookie();
+        // 尝试获取 Token
+        let token = this.getTokenFromCookie('Token');
+
+        // 如果没有找到 Token,尝试获取 merchantToken
+        if (!token) {
+          token = this.getTokenFromCookie('merchantToken');
+        }
 
         if (!token) {
-          throw new Error('未找到授权令牌，请确保您已登录');
+          throw new Error('未找到授权令牌,请确保您已登录');
         }
 
         // 设置请求头
@@ -371,7 +376,7 @@ export default {
         });
 
         if (response.status === 401) {
-          throw new Error('授权失败，请重新登录');
+          throw new Error('授权失败,请重新登录');
         }
 
         if (!response.ok) {
@@ -411,12 +416,12 @@ export default {
       }
     },
 
-    // 新增方法：从 cookie 中获取 Token
-    getTokenFromCookie() {
+    // 修改 getTokenFromCookie 方法以接受 cookie 名称作为参数
+    getTokenFromCookie(cookieName) {
       const cookies = document.cookie.split(';');
       for (let cookie of cookies) {
         const [name, value] = cookie.trim().split('=');
-        if (name === 'Token') {
+        if (name === cookieName) {
           return value;
         }
       }
