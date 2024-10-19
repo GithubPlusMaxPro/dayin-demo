@@ -351,7 +351,33 @@ export default {
 
         console.log('Fetching data from:', apiUrl);  // 用于调试
 
-        const response = await fetch(apiUrl);
+        // 从 cookie 中获取 Token
+        const token = this.getTokenFromCookie();
+
+        if (!token) {
+          throw new Error('未找到授权令牌，请确保您已登录');
+        }
+
+        // 设置请求头
+        const headers = new Headers({
+          'X-Token': token,
+          'Content-Type': 'application/json'
+        });
+
+        const response = await fetch(apiUrl, { 
+          method: 'GET',
+          headers: headers,
+          credentials: 'include' // 确保包含 cookies
+        });
+
+        if (response.status === 401) {
+          throw new Error('授权失败，请重新登录');
+        }
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
         const data = await response.json();
         
         if (data.status === 200 && data.message === "success") {
@@ -385,6 +411,18 @@ export default {
       }
     },
 
+    // 新增方法：从 cookie 中获取 Token
+    getTokenFromCookie() {
+      const cookies = document.cookie.split(';');
+      for (let cookie of cookies) {
+        const [name, value] = cookie.trim().split('=');
+        if (name === 'Token') {
+          return value;
+        }
+      }
+      return null;
+    },
+
     // 添加新的方法
     async autoProcess() {
       this.isProcessing = true;
@@ -392,22 +430,25 @@ export default {
       this.progressText = '正在获取数据...';
       this.errorMessage = '';
 
-      const response = await this.fetchData();
-      if (response.status !== 200) {
-        this.errorMessage = response.data.msg || '处理失败';
+      try {
+        const response = await this.fetchData();
+        if (response.status !== 200) {
+          throw new Error(response.data.msg || '处理失败');
+        }
+
+        this.progressText = '正在生成标签...';
+        await this.generateBulkLabels(response.data.data);
+        this.progressText = '正在导出PDF...';
+
+        await this.exportPDF();
+        this.overallProgress = 100;
+        this.progressText = '处理完成';
+      } catch (error) {
+        this.errorMessage = error.message;
+        console.error('处理失败:', error);
+      } finally {
         this.isProcessing = false;
-        return;
       }
-
-      this.progressText = '正在生成标签...';
-      await this.generateBulkLabels(response.data.data);
-      this.progressText = '正在导出PDF...';
-
-      await this.exportPDF();
-      this.overallProgress = 100;
-      this.progressText = '处理完成';
-
-      this.isProcessing = true;
     },
 
     restart() {
@@ -659,14 +700,14 @@ export default {
 
 /* 添加错误信息样式 */
 .error-message {
-  color: red;
-  font-weight: bold;
-  text-align: center;
-  margin: 20px 0;
+  color: #721c24;
+  background-color: #f8d7da;
+  border: 1px solid #f5c6cb;
+  border-radius: 4px;
   padding: 10px;
-  background-color: #ffeeee;
-  border: 1px solid #ffcccc;
-  border-radius: 5px;
+  margin-bottom: 15px;
+  text-align: center;
+  font-weight: bold;
 }
 
 /* 添加 from 字段的特殊样式 */
