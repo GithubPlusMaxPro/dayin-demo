@@ -95,12 +95,9 @@ export default {
         return '';
       }
     },
-    async generateBulkLabels() {
+    async generateBulkLabels(data) {
       console.time('生成标签');
       
-      const response = await this.fetchData();
-      const data = response.data.data;
-
       this.labels = [];
       this.displayedLabels = [];
 
@@ -114,8 +111,7 @@ export default {
           this.displayedLabels.push(label);
         }
 
-        // 更新总体进度
-        this.overallProgress = Math.round((i + 1) / totalLabels * 50); // 生成标签占总进度的50%
+        this.overallProgress = Math.round((i + 1) / totalLabels * 50);
         this.progressText = `正在生成标签... (${this.overallProgress}%)`;
         
         if (i % 10 === 0) {
@@ -382,8 +378,8 @@ export default {
     async autoProcess() {
       this.isProcessing = true;
       this.overallProgress = 0;
-      this.progressText = '正在生成标签...';
-      this.errorMessage = ''; // 清除之前的错误信息
+      this.progressText = '正在获取数据...';
+      this.errorMessage = '';
 
       const response = await this.fetchData();
       if (response.status !== 200) {
@@ -392,7 +388,8 @@ export default {
         return;
       }
 
-      await this.generateBulkLabels();
+      this.progressText = '正在生成标签...';
+      await this.generateBulkLabels(response.data.data);
       this.progressText = '正在导出PDF...';
 
       await this.exportPDF();
