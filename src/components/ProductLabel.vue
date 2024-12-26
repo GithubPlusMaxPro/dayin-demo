@@ -71,7 +71,8 @@ export default {
   methods: {
     generateBarcode(code) {
       const canvas = document.createElement('canvas');
-      JsBarcode(canvas, code, {
+      const encodedCode = this.encodeForBarcode(code);
+      JsBarcode(canvas, encodedCode, {
         format: "CODE128",
         width: 2,
         height: 60,
@@ -124,8 +125,10 @@ export default {
     },
     async generateLabel(item) {
       const isNoQRCode = String(item.type || '') === 'noqrcode';
+      const isNone = String(item.type || '') === 'none';
       return {
-        barcodeUrl: this.generateBarcode(String(item.key || '')),
+        // 当 type 为 none 时不生成条形码
+        barcodeUrl: isNone ? null : this.generateBarcode(String(item.key || '')),
         qrcodeUrl: isNoQRCode ? null : await this.generateQRCode(String(item.csku || '')),
         filtered: String(item.filtered || ''),
         csku: String(item.csku || ''),
@@ -154,7 +157,6 @@ export default {
           format: [50, 30]
         });
 
-        // 添加中文字体
         pdf.addFont(yaheiFont, 'Yahei', 'normal');
         pdf.addFont(yaheiFont, 'Yahei', 'bold');
 
@@ -168,19 +170,19 @@ export default {
           const isNone = label.type === 'none';
           const isNoQRCode = label.type === 'noqrcode';
 
-          // 只有在非 none 时添加条形码
-          if (!isNone) {
+          // 只有在非 none 类型且有条形码时才添加条形码
+          if (!isNone && label.barcodeUrl) {
             const barcodeImage = await this.createBarcodeImage(label.key);
             pdf.addImage(barcodeImage, 'PNG', 0, 0, 50, 10);
           }
 
-          // 修改 filtered 的显示方式
+          // 修改 filtered 的显示位置，根据是否有条形码调整
           pdf.setFont('Yahei', 'bold');
           pdf.setFontSize(8);
           const filteredY = isNone ? 5 : 12;
           pdf.text(String(label.filtered || ''), 2, filteredY, { maxWidth: 46, lineHeightFactor: 1.2 });
 
-          // 调整文本元素的位置和大小
+          // 根据是否有条形码调整其他文本的位置
           const textStartY = isNone ? 11 : 18.5;
           const textX = isLeft ? 14 : 2;
 
@@ -225,10 +227,11 @@ export default {
 
     async createBarcodeImage(code) {
       const canvas = document.createElement('canvas');
-      JsBarcode(canvas, code, {
+      const encodedCode = this.encodeForBarcode(code);
+      JsBarcode(canvas, encodedCode, {
         format: "CODE128",
         width: 2,
-        height: 80,  // 减小高度
+        height: 80,
         displayValue: false
       });
       return canvas.toDataURL('image/png');
@@ -464,6 +467,15 @@ export default {
       this.overallProgress = 0;
       this.progressText = '';
       this.autoProcess();
+    },
+
+    // 添加新方法用于编码中文字符
+    encodeForBarcode(code) {
+      // 如果code包含中文字符，进行base64编码
+      if (/[\u4e00-\u9fa5]/.test(code)) {
+        return 'CN' + btoa(encodeURIComponent(code));
+      }
+      return code;
     },
   },
   // 添加 mounted 生命周期钩子
