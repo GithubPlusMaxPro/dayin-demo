@@ -189,9 +189,15 @@ app.all('/api/generate-labels', async (req, res) => {
           // 生成文件名：使用自定义文件名或默认文件名
           const timestamp = new Date().getTime();
           const filename = customFilename 
-            ? `${customFilename}_${timestamp}.pdf` 
+            ? `${customFilename}.pdf` 
             : `时丰标签码下载_${timestamp}.pdf`;
           const filePath = path.join(uploadDir, filename);
+          
+          // 如果文件已存在，则删除它（允许覆盖）
+          if (fs.existsSync(filePath)) {
+            console.log('文件已存在，将覆盖:', filePath);
+            fs.unlinkSync(filePath);
+          }
           
           // 保存文件到磁盘
           console.log('开始保存文件到磁盘:', filePath);
