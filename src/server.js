@@ -21,6 +21,49 @@ app.use(bodyParser.urlencoded({ extended: true }));
 // 加载中文字体
 const yaheiFont = fs.readFileSync(path.join(__dirname, '../assets/fonts/yahei.ttf'));
 
+// 添加一个简单的请求队列管理
+const requestQueue = {
+  active: 0,
+  maxConcurrent: 5, // 最大并发处理数
+  queue: [],
+  
+  // 添加请求到队列
+  add(task) {
+    return new Promise((resolve, reject) => {
+      const wrappedTask = async () => {
+        try {
+          this.active++;
+          console.log(`当前活跃任务: ${this.active}, 队列中等待: ${this.queue.length}`);
+          const result = await task();
+          resolve(result);
+        } catch (error) {
+          reject(error);
+        } finally {
+          this.active--;
+          this.processNext();
+        }
+      };
+      
+      if (this.active < this.maxConcurrent) {
+        // 直接执行任务
+        wrappedTask();
+      } else {
+        // 添加到队列
+        console.log(`队列已满，请求排队等待。当前队列长度: ${this.queue.length + 1}`);
+        this.queue.push(wrappedTask);
+      }
+    });
+  },
+  
+  // 处理队列中的下一个请求
+  processNext() {
+    if (this.queue.length > 0 && this.active < this.maxConcurrent) {
+      const nextTask = this.queue.shift();
+      nextTask();
+    }
+  }
+};
+
 // API健康检查
 app.get('/health', (req, res) => {
   res.status(200).json({
@@ -32,146 +75,149 @@ app.get('/health', (req, res) => {
 // 处理标签生成请求 - 支持GET和POST两种方式
 app.all('/api/generate-labels', async (req, res) => {
   try {
-    console.log('开始处理标签生成请求');
-    // 获取参数（支持GET和POST）
-    const params = req.method === 'POST' ? req.body : req.query;
-    
-    // 获取输出模式参数，默认为 'json'（返回文件路径），可选 'download'（直接下载）
-    const outputMode = params.output_mode || 'json';
-    console.log('输出模式:', outputMode);
-    
-    // 获取自定义文件名参数
-    const customFilename = params.filename || '';
-    console.log('自定义文件名:', customFilename || '未提供');
-    
-    // 获取API URL参数
-    let apiUrl = params.api_url;
-    
-    if (!apiUrl) {
-      return res.status(400).json({
-        status: 400,
-        message: 'error',
-        data: { msg: 'API 地址未提供' }
-      });
-    }
-
-    // 处理API URL中的双问号
-    apiUrl = apiUrl.replace('??', '?');
-
-    // 创建URL对象处理apiUrl
-    const apiUrlObj = new URL(apiUrl);
-    const apiParams = new URLSearchParams(apiUrlObj.search);
-
-    // 从请求中获取所有参数并添加到API URL
-    for (const [key, value] of Object.entries(params)) {
-      if (key !== 'api_url') {
-        apiParams.set(key, value);
-      }
-    }
-
-    // 重建API URL
-    apiUrlObj.search = apiParams.toString();
-    apiUrl = apiUrlObj.toString();
-
-    console.log('获取数据来源:', apiUrl);
-
-    // 设置请求头
-    const headers = {
-      'Content-Type': 'application/json'
-    };
-
-    // 发送请求获取数据
-    console.log('开始请求外部API数据');
-    const response = await fetch(apiUrl, { 
-      method: 'GET',
-      headers: headers,
-      timeout: 30000 // 设置30秒超时
-    });
-
-    console.log('外部API响应状态:', response.status);
-    if (!response.ok) {
-      return res.status(response.status).json({
-        status: response.status,
-        message: 'error',
-        data: { msg: `HTTP error! status: ${response.status}` }
-      });
-    }
-
-    console.log('开始解析API响应数据');
-    const data = await response.json();
-    console.log('API响应数据解析完成');
-    
-    if (data.status === 200 && data.message === "success") {
-      if (!data.data || !data.data.data || data.data.data.length === 0) {
-        return res.status(200).json({
-          status: 200,
-          message: "success",
-          data: { msg: "获取到的数据为空", data: [] }
+    // 将请求处理包装为任务，添加到队列
+    await requestQueue.add(async () => {
+      console.log('开始处理标签生成请求');
+      // 获取参数（支持GET和POST）
+      const params = req.method === 'POST' ? req.body : req.query;
+      
+      // 获取输出模式参数，默认为 'json'（返回文件路径），可选 'download'（直接下载）
+      const outputMode = params.output_mode || 'json';
+      console.log('输出模式:', outputMode);
+      
+      // 获取自定义文件名参数
+      const customFilename = params.filename || '';
+      console.log('自定义文件名:', customFilename || '未提供');
+      
+      // 获取API URL参数
+      let apiUrl = params.api_url;
+      
+      if (!apiUrl) {
+        return res.status(400).json({
+          status: 400,
+          message: 'error',
+          data: { msg: 'API 地址未提供' }
         });
       }
+
+      // 处理API URL中的双问号
+      apiUrl = apiUrl.replace('??', '?');
+
+      // 创建URL对象处理apiUrl
+      const apiUrlObj = new URL(apiUrl);
+      const apiParams = new URLSearchParams(apiUrlObj.search);
+
+      // 从请求中获取所有参数并添加到API URL
+      for (const [key, value] of Object.entries(params)) {
+        if (key !== 'api_url') {
+          apiParams.set(key, value);
+        }
+      }
+
+      // 重建API URL
+      apiUrlObj.search = apiParams.toString();
+      apiUrl = apiUrlObj.toString();
+
+      console.log('获取数据来源:', apiUrl);
+
+      // 设置请求头
+      const headers = {
+        'Content-Type': 'application/json'
+      };
+
+      // 发送请求获取数据
+      console.log('开始请求外部API数据');
+      const response = await fetch(apiUrl, { 
+        method: 'GET',
+        headers: headers,
+        timeout: 30000 // 设置30秒超时
+      });
+
+      console.log('外部API响应状态:', response.status);
+      if (!response.ok) {
+        return res.status(response.status).json({
+          status: response.status,
+          message: 'error',
+          data: { msg: `HTTP error! status: ${response.status}` }
+        });
+      }
+
+      console.log('开始解析API响应数据');
+      const data = await response.json();
+      console.log('API响应数据解析完成');
       
-      console.log('开始生成标签，数据条数:', data.data.data.length);
-      // 生成标签
-      const labels = await generateBulkLabels(data.data.data);
-      console.log('标签生成完成');
-      
-      // 生成PDF
-      console.log('开始生成PDF');
-      const pdfBuffer = await generatePDF(labels);
-      console.log('PDF生成完成，大小:', pdfBuffer.length);
-      
-      // 根据输出模式决定如何处理生成的PDF
-      if (outputMode === 'download') {
-        // 直接下载模式 - 设置响应头并发送PDF
-        console.log('使用直接下载模式');
-        res.setHeader('Content-Type', 'application/pdf');
-        
-        // 使用自定义文件名或默认文件名
-        const downloadFilename = customFilename ? `${customFilename}.pdf` : '时丰标签码下载.pdf';
-        // 对文件名进行编码
-        const encodedFilename = encodeURIComponent(downloadFilename).replace(/%20/g, ' ');
-        res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodedFilename}`);
-        return res.send(pdfBuffer);
-      } else {
-        // JSON模式 - 保存文件并返回路径
-        console.log('使用JSON返回模式');
-        // 创建保存文件的目录
-        const uploadDir = path.join(__dirname, '../uploads');
-        if (!fs.existsSync(uploadDir)) {
-          fs.mkdirSync(uploadDir, { recursive: true });
+      if (data.status === 200 && data.message === "success") {
+        if (!data.data || !data.data.data || data.data.data.length === 0) {
+          return res.status(200).json({
+            status: 200,
+            message: "success",
+            data: { msg: "获取到的数据为空", data: [] }
+          });
         }
         
-        // 生成文件名：使用自定义文件名或默认文件名
-        const timestamp = new Date().getTime();
-        const filename = customFilename 
-          ? `${customFilename}_${timestamp}.pdf` 
-          : `时丰标签码下载_${timestamp}.pdf`;
-        const filePath = path.join(uploadDir, filename);
+        console.log('开始生成标签，数据条数:', data.data.data.length);
+        // 生成标签
+        const labels = await generateBulkLabels(data.data.data);
+        console.log('标签生成完成');
         
-        // 保存文件到磁盘
-        console.log('开始保存文件到磁盘:', filePath);
-        fs.writeFileSync(filePath, pdfBuffer);
-        console.log('文件保存完成');
+        // 生成PDF
+        console.log('开始生成PDF');
+        const pdfBuffer = await generatePDF(labels);
+        console.log('PDF生成完成，大小:', pdfBuffer.length);
         
-        // 返回文件路径
-        console.log('返回响应数据');
-        return res.status(200).json({
-          status: 200,
-          message: 'success',
-          data: {
-            filePath: `/uploads/${filename}`,
-            absolutePath: filePath,
-            downloadUrl: `/download/${filename}`
+        // 根据输出模式决定如何处理生成的PDF
+        if (outputMode === 'download') {
+          // 直接下载模式 - 设置响应头并发送PDF
+          console.log('使用直接下载模式');
+          res.setHeader('Content-Type', 'application/pdf');
+          
+          // 使用自定义文件名或默认文件名
+          const downloadFilename = customFilename ? `${customFilename}.pdf` : '时丰标签码下载.pdf';
+          // 对文件名进行编码
+          const encodedFilename = encodeURIComponent(downloadFilename).replace(/%20/g, ' ');
+          res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodedFilename}`);
+          return res.send(pdfBuffer);
+        } else {
+          // JSON模式 - 保存文件并返回路径
+          console.log('使用JSON返回模式');
+          // 创建保存文件的目录
+          const uploadDir = path.join(__dirname, '../uploads');
+          if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
           }
+          
+          // 生成文件名：使用自定义文件名或默认文件名
+          const timestamp = new Date().getTime();
+          const filename = customFilename 
+            ? `${customFilename}_${timestamp}.pdf` 
+            : `时丰标签码下载_${timestamp}.pdf`;
+          const filePath = path.join(uploadDir, filename);
+          
+          // 保存文件到磁盘
+          console.log('开始保存文件到磁盘:', filePath);
+          fs.writeFileSync(filePath, pdfBuffer);
+          console.log('文件保存完成');
+          
+          // 返回文件路径
+          console.log('返回响应数据');
+          return res.status(200).json({
+            status: 200,
+            message: 'success',
+            data: {
+              filePath: `/uploads/${filename}`,
+              absolutePath: filePath,
+              downloadUrl: `/download/${filename}`
+            }
+          });
+        }
+      } else {
+        return res.status(500).json({
+          status: 500,
+          message: 'error',
+          data: { msg: data.message || '接口响应失败' }
         });
       }
-    } else {
-      return res.status(500).json({
-        status: 500,
-        message: 'error',
-        data: { msg: data.message || '接口响应失败' }
-      });
-    }
+    });
   } catch (error) {
     console.error('处理失败:', error);
     return res.status(500).json({
