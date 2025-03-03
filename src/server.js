@@ -100,25 +100,39 @@ app.all('/api/generate-labels', async (req, res) => {
         });
       }
 
-      // 处理API URL中的双问号
-      apiUrl = apiUrl.replace('??', '?');
+      // 处理编码过的URL
+      try {
+        // 解码URL
+        apiUrl = decodeURIComponent(apiUrl);
+        console.log('解码后的URL:', apiUrl);
+        
+        // 处理API URL中的双问号
+        apiUrl = apiUrl.replace('??', '?');
 
-      // 创建URL对象处理apiUrl
-      const apiUrlObj = new URL(apiUrl);
-      const apiParams = new URLSearchParams(apiUrlObj.search);
+        // 创建URL对象处理apiUrl
+        const apiUrlObj = new URL(apiUrl);
+        const apiParams = new URLSearchParams(apiUrlObj.search);
 
-      // 从请求中获取所有参数并添加到API URL
-      for (const [key, value] of Object.entries(params)) {
-        if (key !== 'api_url') {
-          apiParams.set(key, value);
+        // 从请求中获取所有参数并添加到API URL
+        for (const [key, value] of Object.entries(params)) {
+          if (key !== 'api_url') {
+            apiParams.set(key, value);
+          }
         }
+
+        // 重建API URL
+        apiUrlObj.search = apiParams.toString();
+        apiUrl = apiUrlObj.toString();
+
+        console.log('最终处理的URL:', apiUrl);
+      } catch (error) {
+        console.error('URL处理失败:', error);
+        return res.status(400).json({
+          status: 400,
+          message: 'error',
+          data: { msg: '无效的URL格式' }
+        });
       }
-
-      // 重建API URL
-      apiUrlObj.search = apiParams.toString();
-      apiUrl = apiUrlObj.toString();
-
-      console.log('获取数据来源:', apiUrl);
 
       // 设置请求头
       const headers = {
