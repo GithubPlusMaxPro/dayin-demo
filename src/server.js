@@ -40,6 +40,10 @@ app.all('/api/generate-labels', async (req, res) => {
     const outputMode = params.output_mode || 'json';
     console.log('输出模式:', outputMode);
     
+    // 获取自定义文件名参数
+    const customFilename = params.filename || '';
+    console.log('自定义文件名:', customFilename || '未提供');
+    
     // 获取API URL参数
     let apiUrl = params.api_url;
     
@@ -121,8 +125,11 @@ app.all('/api/generate-labels', async (req, res) => {
         // 直接下载模式 - 设置响应头并发送PDF
         console.log('使用直接下载模式');
         res.setHeader('Content-Type', 'application/pdf');
-        // 对中文文件名进行编码
-        const encodedFilename = encodeURIComponent('时丰标签码下载.pdf').replace(/%20/g, ' ');
+        
+        // 使用自定义文件名或默认文件名
+        const downloadFilename = customFilename ? `${customFilename}.pdf` : '时丰标签码下载.pdf';
+        // 对文件名进行编码
+        const encodedFilename = encodeURIComponent(downloadFilename).replace(/%20/g, ' ');
         res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodedFilename}`);
         return res.send(pdfBuffer);
       } else {
@@ -134,9 +141,11 @@ app.all('/api/generate-labels', async (req, res) => {
           fs.mkdirSync(uploadDir, { recursive: true });
         }
         
-        // 生成唯一文件名
+        // 生成文件名：使用自定义文件名或默认文件名
         const timestamp = new Date().getTime();
-        const filename = `时丰标签码下载_${timestamp}.pdf`;
+        const filename = customFilename 
+          ? `${customFilename}_${timestamp}.pdf` 
+          : `时丰标签码下载_${timestamp}.pdf`;
         const filePath = path.join(uploadDir, filename);
         
         // 保存文件到磁盘
