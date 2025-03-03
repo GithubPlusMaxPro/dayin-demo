@@ -151,7 +151,8 @@ app.all('/api/generate-labels', async (req, res) => {
           message: 'success',
           data: {
             filePath: `/uploads/${filename}`,
-            absolutePath: filePath
+            absolutePath: filePath,
+            downloadUrl: `/download/${filename}`
           }
         });
       }
@@ -345,6 +346,48 @@ function encodeForBarcode(code) {
 
 // 添加静态文件服务中间件
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
+// 添加一个新的路由来处理PDF文件的直接下载
+app.get('/download/:filename', (req, res) => {
+  try {
+    const filename = req.params.filename;
+    // 防止路径遍历攻击
+    if (filename.includes('..') || filename.includes('/')) {
+      return res.status(400).json({
+        status: 400,
+        message: 'error',
+        data: { msg: '无效的文件名' }
+      });
+    }
+    
+    const filePath = path.join(__dirname, '../uploads', filename);
+    
+    // 检查文件是否存在
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({
+        status: 404,
+        message: 'error',
+        data: { msg: '文件不存在' }
+      });
+    }
+    
+    // 设置响应头并发送文件
+    res.setHeader('Content-Type', 'application/pdf');
+    // 对中文文件名进行编码
+    const encodedFilename = encodeURIComponent(filename).replace(/%20/g, ' ');
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodedFilename}`);
+    
+    // 发送文件
+    res.sendFile(filePath);
+  } catch (error) {
+    console.error('下载文件失败:', error);
+    return res.status(500).json({
+      status: 500,
+      message: 'error',
+      data: { msg: error.message || '下载文件失败' }
+    });
+  }
+});
 
 // 启动服务器
 app.listen(port, () => {
