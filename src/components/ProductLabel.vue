@@ -28,6 +28,19 @@
       正在导出: {{ exportProgress }}%
     </div>
 
+    <!-- 分块导出进度显示 -->
+    <div v-if="isChunkExporting" class="chunk-export-progress">
+      <div class="chunk-info">
+        分块导出进度: {{ currentChunk }}/{{ totalChunks }} 批
+      </div>
+      <div class="chunk-progress-bar">
+        <div :style="{ width: `${chunkProgress}%` }"></div>
+      </div>
+      <div class="chunk-details">
+        已导出文件: {{ exportedFiles.length }} 个
+      </div>
+    </div>
+
     <!-- 隐藏标签码预览 -->
     <!--
     <div v-for="(label, index) in displayedLabels" :key="index" class="label-preview">
@@ -66,6 +79,13 @@ export default {
       isGeneratingLabels: false,
       generateProgress: 0,
       errorMessage: '', // 添加错误信息属性
+      // 分块导出相关状态
+      maxLabelsPerChunk: 5000, // 每批最大标签数量
+      currentChunk: 0,
+      totalChunks: 0,
+      isChunkExporting: false,
+      chunkProgress: 0,
+      exportedFiles: [], // 存储已导出的文件
     }
   },
   methods: {
@@ -78,14 +98,15 @@ export default {
         height: 60,
         displayValue: false
       });
-      return canvas.toDataURL("image/png");
+      // 使用JPEG格式并降低质量以减少文件大小
+      return canvas.toDataURL("image/jpeg", 0.8);
     },
     async generateQRCode(data) {
       try {
         return await QRCode.toDataURL(data, {
           errorCorrectionLevel: 'M',
           margin: 0,
-          width: 80,
+          width: 60, // 减小二维码尺寸以减少文件大小
           color: {
             dark: '#000000',
             light: '#ffffff'
@@ -147,6 +168,13 @@ export default {
         return;
       }
 
+      // 检查是否需要分块导出
+      if (this.shouldUseChunkedExport()) {
+        console.log(`标签数量过多(${this.labels.length})，使用分块导出模式`);
+        await this.exportPDFChunked();
+        return;
+      }
+
       this.isExporting = true;
       this.exportProgress = 0;
 
@@ -173,7 +201,7 @@ export default {
           // 只有在非 none 类型且有条形码时才添加条形码
           if (!isNone && label.barcodeUrl) {
             const barcodeImage = await this.createBarcodeImage(label.key);
-            pdf.addImage(barcodeImage, 'PNG', 0, 0, 50, 10);
+            pdf.addImage(barcodeImage, 'JPEG', 0, 0, 50, 10);
           }
 
           // 修改 filtered 的显示位置，根据是否有条形码调整
@@ -207,7 +235,7 @@ export default {
 
           // 只有在非noqrcode类型且二维码URL存在时添加二维码
           if (!isNoQRCode && label.qrcodeUrl) {
-            pdf.addImage(label.qrcodeUrl, 'PNG', qrCodeX, qrCodeY, 12, 12);
+            pdf.addImage(label.qrcodeUrl, 'JPEG', qrCodeX, qrCodeY, 12, 12);
           }
 
           this.exportProgress = Math.round(((i + 1) / this.labels.length) * 100);
@@ -220,6 +248,14 @@ export default {
         pdf.save('时丰标签码下载.pdf');
       } catch (error) {
         console.error('PDF导出错误:', error);
+        // 如果普通导出失败，尝试分块导出
+        if (error.message && error.message.includes('Invalid string length')) {
+          console.log('普通导出失败，尝试分块导出');
+          this.errorMessage = '数据量过大，正在尝试分块导出...';
+          await this.exportPDFChunked();
+        } else {
+          this.errorMessage = `PDF导出失败: ${error.message}`;
+        }
       } finally {
         this.isExporting = false;
       }
@@ -477,6 +513,188 @@ export default {
       }
       return code;
     },
+
+    // 图片压缩函数
+    compressImage(dataUrl, quality = 0.8) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          
+          // 计算压缩后的尺寸
+          const maxWidth = 200;
+          const maxHeight = 200;
+          let { width, height } = img;
+          
+          if (width > height) {
+            if (width > maxWidth) {
+              height = (height * maxWidth) / width;
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = (width * maxHeight) / height;
+              height = maxHeight;
+            }
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.src = dataUrl;
+      });
+    },
+
+    // 检查是否需要分块导出
+    shouldUseChunkedExport() {
+      return this.labels.length > this.maxLabelsPerChunk;
+    },
+
+    // 分块导出PDF
+    async exportPDFChunked() {
+      if (this.labels.length === 0) {
+        console.warn('没有标签可以导出');
+        return;
+      }
+
+      this.isChunkExporting = true;
+      this.exportedFiles = [];
+      this.totalChunks = Math.ceil(this.labels.length / this.maxLabelsPerChunk);
+      this.currentChunk = 0;
+
+      try {
+        for (let chunkIndex = 0; chunkIndex < this.totalChunks; chunkIndex++) {
+          this.currentChunk = chunkIndex + 1;
+          this.chunkProgress = Math.round(((chunkIndex + 1) / this.totalChunks) * 100);
+          
+          const startIndex = chunkIndex * this.maxLabelsPerChunk;
+          const endIndex = Math.min(startIndex + this.maxLabelsPerChunk, this.labels.length);
+          const chunkLabels = this.labels.slice(startIndex, endIndex);
+          
+          const fileName = `时丰标签码下载_第${chunkIndex + 1}批.pdf`;
+          
+          try {
+            await this.exportSingleChunk(chunkLabels, fileName);
+            this.exportedFiles.push(fileName);
+            console.log(`第 ${chunkIndex + 1} 批导出成功: ${fileName}`);
+          } catch (chunkError) {
+            console.error(`第 ${chunkIndex + 1} 批导出失败:`, chunkError);
+            this.errorMessage = `第 ${chunkIndex + 1} 批导出失败: ${chunkError.message}`;
+            // 继续导出下一批，不中断整个流程
+            continue;
+          }
+          
+          // 清理内存
+          if (chunkIndex % 5 === 0) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+        }
+        
+        this.chunkProgress = 100;
+        this.showChunkedExportComplete();
+        
+      } catch (error) {
+        console.error('分块导出错误:', error);
+        this.errorMessage = `分块导出失败: ${error.message}`;
+      } finally {
+        this.isChunkExporting = false;
+      }
+    },
+
+    // 导出单个分块
+    async exportSingleChunk(chunkLabels, fileName) {
+      try {
+        console.log(`开始创建PDF: ${fileName}, 标签数量: ${chunkLabels.length}`);
+        
+        const pdf = new jsPDF({
+          orientation: 'landscape',
+          unit: 'mm',
+          format: [50, 30]
+        });
+
+        pdf.addFont(yaheiFont, 'Yahei', 'normal');
+        pdf.addFont(yaheiFont, 'Yahei', 'bold');
+
+        for (let i = 0; i < chunkLabels.length; i++) {
+          if (i > 0) {
+            pdf.addPage([50, 30], 'landscape');
+          }
+
+          const label = chunkLabels[i];
+          const isLeft = label.type === 'left';
+          const isNone = label.type === 'none';
+          const isNoQRCode = label.type === 'noqrcode';
+
+          // 只有在非 none 类型且有条形码时才添加条形码
+          if (!isNone && label.barcodeUrl) {
+            try {
+              const barcodeImage = await this.createBarcodeImage(label.key);
+              pdf.addImage(barcodeImage, 'JPEG', 0, 0, 50, 10);
+            } catch (barcodeError) {
+              console.warn(`条形码生成失败 (标签 ${i}):`, barcodeError);
+            }
+          }
+
+          // 修改 filtered 的显示位置，根据是否有条形码调整
+          pdf.setFont('Yahei', 'bold');
+          pdf.setFontSize(8);
+          const filteredY = isNone ? 5 : 12;
+          pdf.text(String(label.filtered || ''), 2, filteredY, { maxWidth: 46, lineHeightFactor: 1.2 });
+
+          // 根据是否有条形码调整其他文本的位置
+          const textStartY = isNone ? 11 : 18.5;
+          const textX = isLeft ? 14 : 2;
+
+          pdf.setFont('Yahei', 'bold');
+          pdf.setFontSize(8);
+          pdf.text(String(label.from || ''), textX, textStartY);
+
+          pdf.setFont('Yahei', 'normal');
+          pdf.setFontSize(5);
+          pdf.text(String(label.csku || ''), textX, textStartY + 2.5);
+          pdf.text(String(label.key || ''), textX, textStartY + 4.5);
+          pdf.text(String(label.orderDesc || ''), textX, textStartY + 6.5);
+          
+          // 将 card_id 和 createTime 放在一起
+          pdf.text(`${label.cardId || ''} ${label.createTime || ''}`, textX, textStartY + 8.5);
+          
+          pdf.text(String(label.merName || ''), textX, textStartY + 10.5);
+
+          // 调整 QR 码的位置
+          const qrCodeX = isNone ? 37 : (isLeft ? 1 : 37);
+          const qrCodeY = isNone ? 10 : 17;
+
+          // 只有在非noqrcode类型且二维码URL存在时添加二维码
+          if (!isNoQRCode && label.qrcodeUrl) {
+            try {
+              pdf.addImage(label.qrcodeUrl, 'JPEG', qrCodeX, qrCodeY, 12, 12);
+            } catch (qrcodeError) {
+              console.warn(`二维码添加失败 (标签 ${i}):`, qrcodeError);
+            }
+          }
+        }
+
+        console.log(`PDF创建完成，开始保存: ${fileName}`);
+        pdf.save(fileName);
+        console.log(`文件保存成功: ${fileName}`);
+        
+      } catch (error) {
+        console.error(`导出分块失败 (${fileName}):`, error);
+        throw error; // 重新抛出错误，让上层处理
+      }
+    },
+
+    // 显示分块导出完成信息
+    showChunkedExportComplete() {
+      this.errorMessage = `分块导出完成！共导出 ${this.totalChunks} 个文件。`;
+      setTimeout(() => {
+        this.errorMessage = '';
+      }, 5000);
+    },
   },
   // 添加 mounted 生命周期钩子
   mounted() {
@@ -711,9 +929,9 @@ export default {
 }
 
 /* 可以为生成标签的进度条添加特定样式,如果需要的话 */
-.progress-bar.generate-progress {
+/* .progress-bar.generate-progress {
   /* 特定样式 */
-}
+/* } */
 
 /* 添加错误信息样式 */
 .error-message {
@@ -733,5 +951,42 @@ export default {
   font-weight: bold;  /* 加粗 */
   color: #0066cc;
   margin-bottom: 1mm;
+}
+
+/* 分块导出进度样式 */
+.chunk-export-progress {
+  margin-top: 15px;
+  padding: 15px;
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.chunk-info {
+  font-size: 16px;
+  font-weight: bold;
+  color: #495057;
+  margin-bottom: 10px;
+}
+
+.chunk-progress-bar {
+  width: 100%;
+  height: 20px;
+  background-color: #e9ecef;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.chunk-progress-bar > div {
+  height: 100%;
+  background-color: #007bff;
+  transition: width 0.5s ease;
+}
+
+.chunk-details {
+  font-size: 14px;
+  color: #6c757d;
 }
 </style>
