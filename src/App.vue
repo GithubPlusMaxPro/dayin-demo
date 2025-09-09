@@ -1,6 +1,6 @@
 <template>
   <div id="app">
-    <h1>时丰系统标签码打印</h1>
+    <!-- <h1>时丰系统标签码打印</h1> -->
     <!-- <p>先生成标签码，然后导出PDF</p> -->
     <ProductLabel />
   </div>
